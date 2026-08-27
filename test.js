@@ -725,3 +725,21 @@ test('index.html: 打包的拼音库带的版本号就是 vendor 里那个库的
   assert.ok(typeof lib.pinyin === 'function', 'vendor/pinyin-pro.js 没导出 pinyin()');
   assert.match(m[1], /^\d+\.\d+\.\d+$/, `版本号该写成库的版本（如 3.29.2），实得 ${m[1]}`);
 });
+
+test('index.html: 打印时关掉了 justify-items —— 否则整张卡按内容收缩，印出来不满页', () => {
+  // 屏幕上 .cards 是网格布局，justify-items:start 只管网格项对齐。
+  // 打印时它被改成 display:block，而新版 Chrome 的块级布局也认 justify-self：
+  // 这条属性会让 .card-slot 从「撑满父容器」变成「按内容收缩」，
+  // 于是整张卡的宽度跟着词的字数走 —— 实测 190mm 缩到 163mm，右边空出 26mm。
+  // 屏幕上看不出来，因为那时 .card-slot 有固定宽度。
+
+  // 先剥掉 CSS 注释再解析 —— 注释里也会提到 justify-items，会把正则带偏
+  const css = HTML.replace(/\/\*[\s\S]*?\*\//g, '');
+  const print = css.match(/@media print \{([\s\S]*)\n  \}/);
+  assert.ok(print, '找不到 @media print 块');
+  const cards = print[1].match(/\.cards \{([\s\S]*?)\}/);
+  assert.ok(cards, '@media print 里没有 .cards 规则');
+  const m = cards[1].match(/justify-items:\s*([\w-]+)/);
+  assert.ok(m, '@media print 的 .cards 没有显式设置 justify-items —— 会继承屏幕那条 start');
+  assert.notStrictEqual(m[1], 'start', 'justify-items 仍是 start，卡片会按内容收缩');
+});

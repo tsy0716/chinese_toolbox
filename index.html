@@ -229,7 +229,15 @@
     .wrap { max-width: none; padding: 0; }
     .noprint { display: none !important; }
 
-    .cards { display: block; gap: 0; }
+    .cards {
+      display: block;
+      gap: 0;
+      /* 必须显式关掉屏幕那条 justify-items:start —— 它本来只是给网格布局用的，
+         但这里把 .cards 改成了 block，而新版 Chrome 的块级布局也认 justify-self：
+         .card-slot 于是从「撑满父容器」变成「按内容收缩」，整张卡的宽度跟着
+         字数走，印出来不满页（屏幕上看不出来，因为 .card-slot 那时有固定宽度）。 */
+      justify-items: normal;
+    }
     .card-slot {
       width: auto;
       height: auto;
