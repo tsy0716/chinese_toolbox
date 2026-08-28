@@ -239,7 +239,10 @@
   }
   .word .hz {
     line-height: var(--lh-hz);
-    font-weight: 500;
+    /* Light。原来是 500（中黑），大字号下墨太重。
+       再往下还有 200/100，但最密的 5x8（字号 6.1mm）下笔画会细到发虚，
+       有的打印机还会印丢，所以停在 300。 */
+    font-weight: 300;
     white-space: nowrap;
   }
 
