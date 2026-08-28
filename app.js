@@ -11,7 +11,9 @@
   const W = window.BingoWords;
 
   const PAGE_INNER_MM = 190; // A4 竖版扣掉 10mm 页边距后的可用宽度
-  const GRID_MM = 210;       // 网格总高；与 index.html 里的 --card-h 配套（24 + 4 + 210 = 238）
+
+  /** 当前版式的尺寸。整页一份 or 一张 A4 两份 —— 数值只在 logic.js 的 LAYOUT 里定义一次 */
+  const layoutOf = (twoUp) => (twoUp ? L.LAYOUT.two : L.LAYOUT.one);
 
   const MODE_LABEL = { both: '汉字+拼音', hanzi: '只印汉字', pinyin: '只印拼音' };
 
@@ -19,7 +21,7 @@
 
   const el = {
     packs: $('packs'), custom: $('custom'), mode: $('mode'), grid: $('grid'), count: $('count'),
-    title: $('title'), seed: $('seed'), refCard: $('refCard'),
+    title: $('title'), seed: $('seed'), refCard: $('refCard'), twoUp: $('twoUp'),
     autoPinyin: $('autoPinyin'), generate: $('generate'), printCards: $('printCards'),
     status: $('status'), cards: $('cards'),
   };
@@ -29,7 +31,7 @@
   el.cards.style.setProperty('--lh-py', L.METRICS.pinyinLineHeight);
 
   /** 本次生成的结果 */
-  let state = { pool: [], deck: [], cols: 0, rows: 0, seed: '', mode: 'both', withRef: false };
+  let state = { pool: [], deck: [], cols: 0, rows: 0, seed: '', mode: 'both', withRef: false, twoUp: false };
 
   // ---------- 主题勾选 ----------
 
@@ -106,7 +108,9 @@
   function rebuildGridOptions() {
     const mode = el.mode.value;
     const keep = el.grid.value;
-    const grids = L.GRIDS[mode];
+    const twoUp = el.twoUp.checked;
+    const grids = L.gridsFor(mode, twoUp);
+    const gridMm = layoutOf(twoUp).gridMm;
 
     el.grid.textContent = '';
     for (const g of grids) {
@@ -114,7 +118,7 @@
       const opt = document.createElement('option');
       opt.value = g;
       opt.textContent = `${cols} 列 x ${rows} 行（${cols * rows} 词，格子 ` +
-        `${Math.round(PAGE_INNER_MM / cols)}x${Math.round(GRID_MM / rows)}mm）`;
+        `${Math.round(PAGE_INNER_MM / cols)}x${Math.round(gridMm / rows)}mm）`;
       el.grid.appendChild(opt);
     }
     el.grid.value = grids.includes(keep) ? keep : (grids.includes('5x6') ? '5x6' : grids[0]);
@@ -124,6 +128,9 @@
     rebuildGridOptions();
     reportPool();
   });
+
+  // 两份版放不下 12 行的网格，勾选状态一变就得重建下拉
+  el.twoUp.addEventListener('change', rebuildGridOptions);
 
   function say(message, isError) {
     el.status.textContent = message;
@@ -234,14 +241,19 @@
     }
 
     el.seed.value = seed;
-    state = { pool, deck, cols, rows, seed, mode: el.mode.value, withRef: el.refCard.checked };
+    state = {
+      pool, deck, cols, rows, seed,
+      mode: el.mode.value, withRef: el.refCard.checked, twoUp: el.twoUp.checked,
+    };
 
     renderCards();
     el.printCards.disabled = false;
 
-    const pages = deck.length + (state.withRef ? 1 : 0);
+    const cards = deck.length + (state.withRef ? 1 : 0);
+    const pages = state.twoUp ? Math.ceil(cards / 2) : cards;
     say(`已生成 ${deck.length} 张学生卡${state.withRef ? ' + 1 张裁判页' : ''}，` +
         `共 ${pages} 页（种子 ${seed}）。${MODE_LABEL[state.mode]}，每张 ${cols * rows} 格。` +
+        (state.twoUp ? '一张 A4 印两份，中间剪开。' : '') +
         `全班词语相同，只有位置不同。`);
   });
 
@@ -300,21 +312,24 @@
    * 只是抬头换成「裁判用」，照着划掉就是喊词单。
    */
   function renderCard(card, isRef) {
-    const { cols, rows, mode } = state;
+    const { cols, rows, mode, twoUp } = state;
     const title = el.title.value.trim() || '拼音宾果';
     const cellW = PAGE_INNER_MM / cols;
-    const cellH = GRID_MM / rows;
+    const cellH = layoutOf(twoUp).gridMm / rows;
 
     const slot = document.createElement('div');
     slot.className = 'card-slot';
 
     const box = document.createElement('div');
-    box.className = isRef ? 'card card--ref' : 'card';
+    box.className = 'card'
+      + (isRef ? ' card--ref' : '')
+      + (twoUp ? ' card--half' : '');   // 半张卡的抬头压成一行，见 index.html
 
     const head = document.createElement('div');
     head.className = 'card__head';
 
     const left = document.createElement('div');
+    left.className = 'card__meta';
     const h = document.createElement('div');
     h.className = 'card__title';
     h.textContent = isRef ? title + ' · 裁判用' : title;
@@ -356,6 +371,8 @@
 
   function renderCards() {
     el.cards.textContent = '';
+
+    const slots = [];
     if (state.withRef) {
       // 裁判那张排在最前面，老师撕走第一页就行。
       // 它用独立的摆法 —— 否则会和某个学生的卡一模一样，那孩子照着老师划掉的位置抄就行了。
@@ -363,9 +380,28 @@
         words: state.deck[0].cells,
         seed: `${state.seed}-ref`,
       });
-      el.cards.appendChild(renderCard(referee, true));
+      slots.push(renderCard(referee, true));
     }
-    for (const card of state.deck) el.cards.appendChild(renderCard(card, false));
+    for (const card of state.deck) slots.push(renderCard(card, false));
+
+    if (!state.twoUp) {
+      for (const slot of slots) el.cards.appendChild(slot);
+      return;
+    }
+
+    // 两份版：每两张装进一张纸，中间放剪切线。
+    // 张数是奇数时最后一页只有上半张，下半张留白 —— 不去凑数补一张多余的卡。
+    for (let i = 0; i < slots.length; i += 2) {
+      const sheet = document.createElement('div');
+      sheet.className = 'sheet';
+      sheet.appendChild(slots[i]);
+      if (slots[i + 1]) {
+        const cut = document.createElement('div');
+        cut.className = 'cutline';
+        sheet.append(cut, slots[i + 1]);
+      }
+      el.cards.appendChild(sheet);
+    }
   }
 
   // ---------- 打印 ----------

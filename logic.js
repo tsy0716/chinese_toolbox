@@ -341,6 +341,35 @@
     pinyin: ['4x4', '4x6', '5x5', '5x6', '4x8', '5x8', '4x10', '5x10', '4x12', '5x12'],
   };
 
+  /**
+   * 卡片版式。两种：一张 A4 印一份，或印两份（中间剪开，分给两个学生，省一半纸）。
+   *
+   * 两份版的高度预算和整页版对齐 —— 都是 238mm，剩下的 39mm 留给浏览器打印时
+   * 自己加的页眉页脚。这是「一张卡永远只占一页」的保障，不能为了多塞内容去动它：
+   *   整页：24 + 4 + 210             = 238
+   *   两份：(12 + 3 + 100) x 2 + 8   = 238
+   *
+   * 抬头从 24mm 压到 12mm 的办法是把标题、姓名栏、编号从两行改成挤在一行。
+   */
+  const LAYOUT = {
+    one: { headMm: 24, gapMm: 4, gridMm: 210, cardMm: 238 },
+    two: { headMm: 12, gapMm: 3, gridMm: 100, cardMm: 115, gutterMm: 8 },
+  };
+
+  /**
+   * 两份版放不下 12 行的网格：网格区从 210mm 腰斩到 100mm 后，12 行的格子只剩
+   * 8.3mm 高，字号掉到 5.2mm（汉字）/ 4.6mm（拼音），低于 test.js 盯的看清下限。
+   * 只砍掉纯汉字和纯拼音的最密两档，默认的「汉字+拼音」7 种网格一个不少。
+   */
+  const TWO_UP_MAX_ROWS = 10;
+
+  /** 这个模式在这种版式下能用哪些网格 */
+  function gridsFor(mode, twoUp) {
+    const all = GRIDS[mode] || [];
+    if (!twoUp) return all.slice();
+    return all.filter((g) => Number(g.split('x')[1]) <= TWO_UP_MAX_ROWS);
+  }
+
   /** 带调元音 -> 基本元音。声调符号不占宽度，查字宽表前先去掉 */
   const TONE_BASE = (() => {
     const map = { 'ü': 'u' };
@@ -459,6 +488,6 @@
     makeRng, shuffle, pickN, buildCard, buildDeck,
     parseWordList, mergeWords, usableWords, fillPinyin, formatWordList, needsReview,
     alignPinyin, cellFontSizes, splitPinyinLines, pinyinEms,
-    METRICS, GRIDS,
+    METRICS, GRIDS, LAYOUT, TWO_UP_MAX_ROWS, gridsFor,
   };
 });

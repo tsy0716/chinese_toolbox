@@ -528,13 +528,13 @@ test('cellFontSizes: 拼音对不齐时（连写），整串拼音也不会撑�
 
 const { packs } = require('./words.js');
 const ALL_WORDS = packs.flatMap((p) => p.words);
-const GRID_W = 190, GRID_H = 210; // 卡片上网格区域的尺寸（mm），与 index.html 一致
+const GRID_W = 190; // 网格区宽度（mm），两种版式都是整个可打印宽度
 const M = L.METRICS;
 
-/** 把 '4x6' 这样的写法换算成一个格子的宽高 */
-function cellOf(grid) {
+/** 把 '4x6' 这样的写法换算成一个格子的宽高。gridMm 是网格区总高，随版式变 */
+function cellOf(grid, gridMm) {
   const [cols, rows] = grid.split('x').map(Number);
-  return { cellW: GRID_W / cols, cellH: GRID_H / rows };
+  return { cellW: GRID_W / cols, cellH: gridMm / rows };
 }
 
 /** 一个格子里真正能放东西的宽高（扣掉内边距和格线） */
@@ -565,10 +565,18 @@ function contentBox(mode, size, hanzi, pinyin) {
   return { w: colW * chars + M.colGapMm * (chars - 1), h: pyLine + hzLine };
 }
 
+// 两种版式都要穷举 —— 两份版把网格区从 210mm 压到 100mm，格子矮一半，
+// 是最容易溢出和字号见底的地方，不覆盖等于新版式裸奔。
+const LAYOUTS = [
+  { name: '整页一份', twoUp: false, gridMm: L.LAYOUT.one.gridMm },
+  { name: '一页两份', twoUp: true, gridMm: L.LAYOUT.two.gridMm },
+];
+
+for (const lay of LAYOUTS) {
 for (const mode of ['both', 'hanzi', 'pinyin']) {
-  test(`cellFontSizes 穷举[${mode}]：${ALL_WORDS.length} 个词在每种网格里都不溢出`, () => {
-    for (const grid of L.GRIDS[mode]) {
-      const cell = cellOf(grid);
+  test(`cellFontSizes 穷举[${lay.name}/${mode}]：${ALL_WORDS.length} 个词在每种网格里都不溢出`, () => {
+    for (const grid of L.gridsFor(mode, lay.twoUp)) {
+      const cell = cellOf(grid, lay.gridMm);
       const { w: availW, h: availH } = availOf(cell);
       for (const word of ALL_WORDS) {
         const size = L.cellFontSizes({ mode, ...cell, hanzi: word.hanzi, pinyin: word.pinyin });
@@ -585,12 +593,12 @@ for (const mode of ['both', 'hanzi', 'pinyin']) {
     }
   });
 
-  test(`cellFontSizes 穷举[${mode}]：每种网格下都没有小到看不清的字`, () => {
+  test(`cellFontSizes 穷举[${lay.name}/${mode}]：每种网格下都没有小到看不清的字`, () => {
     // 下限按模式分开定：汉字笔画密，6mm（约 17pt）以下小学生扫读就吃力；
     // 拼音是拉丁小写字母，笔画稀疏，5.5mm（约 15.6pt）仍然清楚。
     const FLOOR = mode === 'pinyin' ? 5.5 : 6;
-    for (const grid of L.GRIDS[mode]) {
-      const cell = cellOf(grid);
+    for (const grid of L.gridsFor(mode, lay.twoUp)) {
+      const cell = cellOf(grid, lay.gridMm);
       for (const word of ALL_WORDS) {
         const size = L.cellFontSizes({ mode, ...cell, hanzi: word.hanzi, pinyin: word.pinyin });
         const main = mode === 'pinyin' ? size.pinyin : size.hanzi;
@@ -601,6 +609,7 @@ for (const mode of ['both', 'hanzi', 'pinyin']) {
       }
     }
   });
+}
 }
 
 test('GRIDS: 每种模式都给出了可选网格，且都是「列x行」格式', () => {
@@ -742,4 +751,82 @@ test('index.html: 打印时关掉了 justify-items —— 否则整张卡按内�
   const m = cards[1].match(/justify-items:\s*([\w-]+)/);
   assert.ok(m, '@media print 的 .cards 没有显式设置 justify-items —— 会继承屏幕那条 start');
   assert.notStrictEqual(m[1], 'start', 'justify-items 仍是 start，卡片会按内容收缩');
+});
+
+// ---------- 一张 A4 印两份：版式尺寸的自洽与 CSS/JS 一致 ----------
+
+test('LAYOUT: 两种版式的抬头+间隔+网格都等于卡片总高', () => {
+  for (const [name, v] of Object.entries(L.LAYOUT)) {
+    assert.strictEqual(
+      v.headMm + v.gapMm + v.gridMm, v.cardMm,
+      `${name} 版式对不上：${v.headMm}+${v.gapMm}+${v.gridMm} != ${v.cardMm}`
+    );
+  }
+});
+
+test('LAYOUT: 两份版的总高预算和整页版一样，不许偷占页眉页脚的余量', () => {
+  // 238mm 是「一张卡永远只占一页」的保障 —— A4 可打印 277mm，留 39mm 给
+  // 浏览器自己加的页眉页脚。两份版要是为了多塞内容把这个吃掉，
+  // 用户一开页眉页脚就会被劈成两页，而且是印出来才发现。
+  const two = L.LAYOUT.two;
+  assert.strictEqual(
+    two.cardMm * 2 + two.gutterMm, L.LAYOUT.one.cardMm,
+    `两份版占 ${two.cardMm * 2 + two.gutterMm}mm，整页版是 ${L.LAYOUT.one.cardMm}mm`
+  );
+});
+
+test('gridsFor: 整页版给出全部网格，两份版砍掉半页放不下的', () => {
+  for (const mode of ['both', 'hanzi', 'pinyin']) {
+    assert.deepStrictEqual(L.gridsFor(mode, false), L.GRIDS[mode], `${mode} 整页版不该被过滤`);
+    const two = L.gridsFor(mode, true);
+    assert.ok(two.length > 0, `${mode} 两份版一个网格都不剩`);
+    for (const g of two) {
+      const rows = Number(g.split('x')[1]);
+      assert.ok(rows <= L.TWO_UP_MAX_ROWS, `${mode} 两份版不该给出 ${g}`);
+    }
+  }
+});
+
+test('gridsFor: 默认模式（汉字+拼音）在两份版下一个网格都没少', () => {
+  // 老师日常用的就是这个模式。要是省纸的代价是网格选项变少，这功能就不好用了。
+  assert.deepStrictEqual(L.gridsFor('both', true), L.GRIDS.both);
+});
+
+test('index.html: 半张卡的尺寸和 logic.js 的 LAYOUT.two 对得上', () => {
+  const css = HTML.replace(/\/\*[\s\S]*?\*\//g, '');
+  const pick = (re, what) => {
+    const m = css.match(re);
+    assert.ok(m, `index.html 里找不到${what}`);
+    return Number(m[1]);
+  };
+  assert.strictEqual(
+    pick(/\.sheet \{[^}]*--card-h:\s*([\d.]+)mm/, '.sheet 的 --card-h'),
+    L.LAYOUT.two.cardMm, '.sheet 的卡片高度和 LAYOUT.two.cardMm 不一致');
+  assert.strictEqual(
+    pick(/\.card--half \.card__head \{[^}]*flex:\s*0 0 ([\d.]+)mm/, '半张卡的抬头高度'),
+    L.LAYOUT.two.headMm, '半张卡抬头高度和 LAYOUT.two.headMm 不一致');
+  assert.strictEqual(
+    pick(/\.card--half \.card__grid \{[^}]*margin-top:\s*([\d.]+)mm/, '半张卡的抬头间隔'),
+    L.LAYOUT.two.gapMm, '半张卡的间隔和 LAYOUT.two.gapMm 不一致');
+  assert.strictEqual(
+    pick(/\.cutline \{[^}]*height:\s*calc\(([\d.]+)mm/, '剪切线高度'),
+    L.LAYOUT.two.gutterMm, '剪切线高度和 LAYOUT.two.gutterMm 不一致');
+});
+
+test('index.html: 整页版的卡片高度和 logic.js 的 LAYOUT.one 对得上', () => {
+  const css = HTML.replace(/\/\*[\s\S]*?\*\//g, '');
+  const m = css.match(/\.cards \{[^}]*--card-h:\s*([\d.]+)mm/);
+  assert.ok(m, '找不到 .cards 的 --card-h');
+  assert.strictEqual(Number(m[1]), L.LAYOUT.one.cardMm);
+});
+
+test('index.html: 两份版的翻页单位是「一张纸」，卡槽收回了自己的翻页', () => {
+  // 漏了 .sheet .card-slot 这条，两张卡还是各占一页 —— 功能等于没做，
+  // 而且屏幕预览看着是对的，只有印出来才发现。
+  const css = HTML.replace(/\/\*[\s\S]*?\*\//g, '');
+  const print = css.match(/@media print \{([\s\S]*)\n  \}/);
+  assert.ok(print, '找不到 @media print 块');
+  assert.match(print[1], /\.sheet \{[^}]*break-after:\s*page/, '.sheet 没有按页翻');
+  assert.match(print[1], /\.sheet \.card-slot \{[^}]*break-after:\s*auto/,
+    '.sheet 里的卡槽没有收回翻页，两份会各占一页');
 });
