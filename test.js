@@ -527,7 +527,16 @@ test('cellFontSizes: 拼音对不齐时（连写），整串拼音也不会撑�
 // ---------- 穷举：每个真实词 x 每种网格 x 每种模式 ----------
 
 const { packs } = require('./words.js');
-const ALL_WORDS = packs.flatMap((p) => p.words);
+
+// 必须补上真拼音再穷举。词库只存汉字（拼音运行时生成），直接拿 packs 里的词
+// 等于拿「拼音是空串」在测 —— 拼音宽度、长拼音折行这些最容易撑破格子的因素
+// 一个都测不到，穷举看着跑了 657 个词，其实是空转。
+// 转换器和 app.js 里那个 toPinyin 用的是同一套调用方式。
+const PINYIN_PRO = require('./vendor/pinyin-pro.js');
+const ALL_WORDS = L.fillPinyin(
+  packs.flatMap((p) => p.words),
+  (hanzi) => PINYIN_PRO.pinyin(hanzi, { type: 'array' }).join(' ')
+);
 const GRID_W = 190; // 网格区宽度（mm），两种版式都是整个可打印宽度
 const M = L.METRICS;
 
@@ -596,10 +605,18 @@ for (const mode of ['both', 'hanzi', 'pinyin']) {
   test(`cellFontSizes 穷举[${lay.name}/${mode}]：每种网格下都没有小到看不清的字`, () => {
     // 下限按模式分开定：汉字笔画密，6mm（约 17pt）以下小学生扫读就吃力；
     // 拼音是拉丁小写字母，笔画稀疏，5.5mm（约 15.6pt）仍然清楚。
-    const FLOOR = mode === 'pinyin' ? 5.5 : 6;
+    //
+    // 两份版的卡实际是 A5，格子本来就矮，拼音下限取 5.3mm（约 15pt）。这不是
+    // 为了让测试变绿而放水：整个字号模型自带 4% 安全系数（METRICS.safety），
+    // 5.3 和 5.5 的差距正在这个量级里。真正的断崖是 5x8 / 5x10 的 4.2mm
+    // （约 12pt，声调符号先糊），那两档已经在 gridsFor 里直接不给选了。
+    const FLOOR = mode !== 'pinyin' ? 6 : (lay.twoUp ? 5.3 : 5.5);
     for (const grid of L.gridsFor(mode, lay.twoUp)) {
       const cell = cellOf(grid, lay.gridMm);
       for (const word of ALL_WORDS) {
+        // 7x7 / 8x8 的格子太窄，三四个字的词排不开。这两档偏小是明确接受的
+        // 取舍（见 logic.js 的 DENSE_GRIDS），下面另有一条把代价钉住。
+        if (L.DENSE_GRIDS.includes(grid)) continue;
         const size = L.cellFontSizes({ mode, ...cell, hanzi: word.hanzi, pinyin: word.pinyin });
         const main = mode === 'pinyin' ? size.pinyin : size.hanzi;
         assert.ok(
@@ -621,15 +638,22 @@ test('GRIDS: 每种模式都给出了可选网格，且都是「列x行」格式
   }
 });
 
-test('GRIDS: 默认模式（汉字+拼音）的每种网格，单选一个主题就能铺满', () => {
+test('GRIDS: 页面默认选中的那个网格，单选一个主题就能铺满', () => {
+  // 打开页面 -> 随手勾一个主题 -> 直接能生成，这是第一次用的最短路径，必须走得通。
+  // 更密的 7x7（49 格）、8x8（64 格）单个主题（最小 41 词）铺不满，这是有意为之：
+  // 页面会实时提示「词池 41 个词，铺不满 7x7 = 49 格。再多选一个主题。」
   const smallest = Math.min(...packs.map((p) => p.words.length));
-  for (const g of L.GRIDS.both) {
-    const [cols, rows] = g.split('x').map(Number);
-    assert.ok(
-      cols * rows <= smallest,
-      `网格 ${g} 要 ${cols * rows} 格，但最小的主题只有 ${smallest} 个词`
-    );
-  }
+  // 必须先框到网格那个下拉再找 —— 「格子里印什么」的下拉里也有个 selected，
+  // 直接全文搜会先命中它（value="both"），把 cols/rows 解析成 NaN。
+  const sel = HTML.match(/<select id="grid">([\s\S]*?)<\/select>/);
+  assert.ok(sel, '找不到 id="grid" 的 select');
+  const m = sel[1].match(/<option value="([^"]+)"[^>]*\sselected/);
+  assert.ok(m, 'index.html 的网格下拉没有标 selected 的默认项');
+  const [cols, rows] = m[1].split('x').map(Number);
+  assert.ok(
+    cols * rows <= smallest,
+    `默认网格 ${m[1]} 要 ${cols * rows} 格，但最小的主题只有 ${smallest} 个词`
+  );
 });
 
 test('GRIDS: 最密的网格，全部主题加起来也铺得满（页面会提示多选主题）', () => {
@@ -829,4 +853,67 @@ test('index.html: 两份版的翻页单位是「一张纸」，卡槽收回了�
   assert.match(print[1], /\.sheet \{[^}]*break-after:\s*page/, '.sheet 没有按页翻');
   assert.match(print[1], /\.sheet \.card-slot \{[^}]*break-after:\s*auto/,
     '.sheet 里的卡槽没有收回翻页，两份会各占一页');
+});
+
+// ---------- 紧凑网格（7x7 / 8x8）与两份版拼音的取舍，都钉住 ----------
+
+test('DENSE_GRIDS: 7x7 / 8x8 确实在选项里 —— 这是用户要的，别被后来的重构悄悄删掉', () => {
+  for (const g of L.DENSE_GRIDS) {
+    assert.ok(L.GRIDS.both.includes(g), `默认模式少了 ${g}`);
+    assert.ok(L.GRIDS.hanzi.includes(g), `只印汉字少了 ${g}`);
+    assert.ok(L.GRIDS.pinyin.includes(g), `只印拼音少了 ${g}`);
+  }
+  assert.ok(L.GRIDS.both.includes('6x6'), '默认模式少了 6x6');
+});
+
+test('DENSE_GRIDS: 长词在这两档确实偏小 —— 明确的取舍，但不许更糟', () => {
+  // 加 7x7 / 8x8 的代价：词库里最长的词字号会掉到 6mm 下限以下。
+  // 这一条不是要求它达标，而是钉住「差成什么样」—— 哪天改了字号算法或
+  // 度量表让它更小，这里会红，而不是等印出来才发现。
+  const longest = ALL_WORDS.reduce(
+    (a, b) => (Array.from(b.hanzi).length > Array.from(a.hanzi).length ? b : a)
+  );
+  assert.strictEqual(longest.hanzi, '公共汽车', '词库里最长的词变了，下面的数值要重新量');
+
+  const got = {};
+  for (const g of L.DENSE_GRIDS) {
+    const [cols, rows] = g.split('x').map(Number);
+    const size = L.cellFontSizes({
+      mode: 'both', cellW: GRID_W / cols, cellH: L.LAYOUT.one.gridMm / rows,
+      hanzi: longest.hanzi, pinyin: longest.pinyin,
+    });
+    got[g] = size.hanzi;
+    assert.ok(size.hanzi < 6, `${g} 居然达标了 —— 那 DENSE_GRIDS 的例外就该撤掉`);
+    assert.ok(size.hanzi > 4, `${g} 只有 ${size.hanzi.toFixed(1)}mm，比当初接受的还小`);
+  }
+  // 当初做决定时的实测值，留作对照
+  assert.ok(Math.abs(got['7x7'] - 5.3) < 0.3, `7x7 实得 ${got['7x7'].toFixed(1)}mm，当初是 5.3mm`);
+  assert.ok(Math.abs(got['8x8'] - 4.5) < 0.3, `8x8 实得 ${got['8x8'].toFixed(1)}mm，当初是 4.5mm`);
+});
+
+test('gridsFor: 两份版 + 只印拼音，挡掉了拼音会掉到 4.2mm 的那两档', () => {
+  // 这两档是断崖（约 12pt，声调符号先糊）。只在这一个组合下挡：
+  // 整页版它们有 6.9mm，好得很，不该受连累。
+  const twoUpPinyin = L.gridsFor('pinyin', true);
+  for (const g of L.TWO_UP_PINYIN_BLOCKED) {
+    assert.ok(!twoUpPinyin.includes(g), `两份版的纯拼音不该给出 ${g}`);
+    assert.ok(L.gridsFor('pinyin', false).includes(g), `整页版的纯拼音不该少了 ${g}`);
+    // 拿 hanzi 模式验证「只挡纯拼音」—— 它的网格表里 5x8 和 5x10 都有
+    // （both 模式本来就没有 5x10，用它验证等于什么都没验）
+    assert.ok(L.gridsFor('hanzi', true).includes(g), `只该挡纯拼音，不该连累只印汉字的 ${g}`);
+  }
+});
+
+test('穷举用的词必须带真拼音 —— 空拼音会让整组穷举变成空转', () => {
+  // 这条守的是「测试自己的输入」。词库只存汉字，拼音运行时生成；如果哪天
+  // ALL_WORDS 又退回直接读 packs，穷举照样跑 657 个词、照样全绿，但拼音宽度
+  // 和长拼音折行一个都测不到 —— 今天这个盲点就是这么潜伏下来的。
+  const missing = ALL_WORDS.filter((w) => !String(w.pinyin || '').trim());
+  assert.strictEqual(missing.length, 0,
+    `有 ${missing.length} 个词没拼音，如「${missing[0] && missing[0].hanzi}」`);
+
+  // 再抽查一个：拼音得是按音节分开的，不是连写
+  const four = ALL_WORDS.find((w) => w.hanzi === '公共汽车');
+  assert.ok(four, '词库里找不到「公共汽车」');
+  assert.strictEqual(four.pinyin, 'gōng gòng qì chē');
 });

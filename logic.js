@@ -336,10 +336,31 @@
   const GRIDS = {
     // both 保守停在 5x8 = 40 词 —— 这是单个主题（最小 41 词）还能独立铺满的上限，
     // 而且三种模式里它的内容最高，格子不宜再密
-    both:   ['4x4', '4x6', '4x8', '5x5', '5x6', '5x7', '5x8'],
-    hanzi:  ['4x4', '4x6', '5x5', '5x6', '4x8', '5x8', '4x10', '5x10', '6x10', '5x12', '6x12'],
-    pinyin: ['4x4', '4x6', '5x5', '5x6', '4x8', '5x8', '4x10', '5x10', '4x12', '5x12'],
+    both:   ['4x4', '4x6', '4x8', '5x5', '5x6', '5x7', '5x8', '6x6', '7x7', '8x8'],
+    hanzi:  ['4x4', '4x6', '5x5', '5x6', '4x8', '6x6', '5x8', '4x10', '7x7', '5x10',
+             '6x10', '5x12', '8x8', '6x12'],
+    pinyin: ['4x4', '4x6', '5x5', '5x6', '4x8', '6x6', '5x8', '4x10', '5x10', '4x12',
+             '7x7', '5x12', '8x8'],
   };
+
+  /**
+   * 这两档的格子太窄（7 列 27mm、8 列 24mm），四字词每字占一列排不开，
+   * 字号会掉到 5.3 / 4.5mm，低于看清下限。词库里四字词只有「公共汽车」一个
+   * （657 个词里就它），1-3 字的词在这两档都达标，所以还是给出选项 ——
+   * 这是明确的取舍，不是漏网。test.js 把它钉住，别让它悄悄变得更糟。
+   */
+  const DENSE_GRIDS = ['7x7', '8x8'];
+
+  /**
+   * 两份版 + 只印拼音时挡掉的网格。
+   *
+   * 半页的格子本来就矮，长拼音（gōng gòng qì chē）还要折成两行，两行塞进
+   * 12.5mm 高的格子只能把字号压到 4.2mm（约 12pt）—— 声调符号首先糊掉。
+   * 这两档是断崖，其余档位都在 5.3mm（约 15pt）以上，仍然清楚。
+   *
+   * 只在「两份 + 纯拼音」这一个组合下生效：整页版这两档有 6.9mm，好得很。
+   */
+  const TWO_UP_PINYIN_BLOCKED = ['5x8', '5x10'];
 
   /**
    * 卡片版式。两种：一张 A4 印一份，或印两份（中间剪开，分给两个学生，省一半纸）。
@@ -367,7 +388,11 @@
   function gridsFor(mode, twoUp) {
     const all = GRIDS[mode] || [];
     if (!twoUp) return all.slice();
-    return all.filter((g) => Number(g.split('x')[1]) <= TWO_UP_MAX_ROWS);
+    return all.filter((g) => {
+      if (Number(g.split('x')[1]) > TWO_UP_MAX_ROWS) return false;
+      if (mode === 'pinyin' && TWO_UP_PINYIN_BLOCKED.includes(g)) return false;
+      return true;
+    });
   }
 
   /** 带调元音 -> 基本元音。声调符号不占宽度，查字宽表前先去掉 */
@@ -488,6 +513,6 @@
     makeRng, shuffle, pickN, buildCard, buildDeck,
     parseWordList, mergeWords, usableWords, fillPinyin, formatWordList, needsReview,
     alignPinyin, cellFontSizes, splitPinyinLines, pinyinEms,
-    METRICS, GRIDS, LAYOUT, TWO_UP_MAX_ROWS, gridsFor,
+    METRICS, GRIDS, LAYOUT, TWO_UP_MAX_ROWS, DENSE_GRIDS, TWO_UP_PINYIN_BLOCKED, gridsFor,
   };
 });
