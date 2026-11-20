@@ -336,9 +336,10 @@
   const GRIDS = {
     // both 保守停在 5x8 = 40 词 —— 这是单个主题（最小 41 词）还能独立铺满的上限，
     // 而且三种模式里它的内容最高，格子不宜再密
-    both:   ['4x4', '4x6', '4x8', '5x5', '5x6', '5x7', '5x8', '6x6', '7x7', '8x8'],
+    both:   ['4x4', '4x6', '4x8', '5x5', '5x6', '5x7', '5x8', '6x6', '7x7', '8x8',
+             '9x9', '10x10', '11x11', '12x12'],
     hanzi:  ['4x4', '4x6', '5x5', '5x6', '4x8', '6x6', '5x8', '4x10', '7x7', '5x10',
-             '6x10', '5x12', '8x8', '6x12'],
+             '6x10', '5x12', '8x8', '6x12', '9x9', '10x10', '11x11', '12x12'],
     pinyin: ['4x4', '4x6', '5x5', '5x6', '4x8', '6x6', '5x8', '4x10', '5x10', '4x12',
              '7x7', '5x12', '8x8'],
   };
@@ -350,6 +351,18 @@
    * 这是明确的取舍，不是漏网。test.js 把它钉住，别让它悄悄变得更糟。
    */
   const DENSE_GRIDS = ['7x7', '8x8'];
+
+  /**
+   * 超大网格（81 到 144 格），给「一格一个字」的大字表 Bingo 用。
+   *
+   * 格子只有 15.8–21mm 见方，单字没问题（12x12 汉字还有 9mm 以上），
+   * 两字词在「只印汉字」里也还有 6mm 以上；三四字词就排不开了 —— 这是明确的取舍。
+   *   - 只放进「汉字+拼音」和「只印汉字」：纯拼音模式下 chuāng 这种长音节
+   *     在 9x9 就掉到 5.2mm，低于拼音下限，所以不给。
+   *   - 只出整页：半页的网格区只有 100mm 高，9 行以上格子太矮。
+   * test.js 钉住「单字在这几档都看得清」。
+   */
+  const HUGE_GRIDS = ['9x9', '10x10', '11x11', '12x12'];
 
   /**
    * 两份版 + 只印拼音时挡掉的网格。
@@ -390,6 +403,7 @@
     if (!twoUp) return all.slice();
     return all.filter((g) => {
       if (Number(g.split('x')[1]) > TWO_UP_MAX_ROWS) return false;
+      if (HUGE_GRIDS.includes(g)) return false;
       if (mode === 'pinyin' && TWO_UP_PINYIN_BLOCKED.includes(g)) return false;
       return true;
     });
@@ -513,6 +527,6 @@
     makeRng, shuffle, pickN, buildCard, buildDeck,
     parseWordList, mergeWords, usableWords, fillPinyin, formatWordList, needsReview,
     alignPinyin, cellFontSizes, splitPinyinLines, pinyinEms,
-    METRICS, GRIDS, LAYOUT, TWO_UP_MAX_ROWS, DENSE_GRIDS, TWO_UP_PINYIN_BLOCKED, gridsFor,
+    METRICS, GRIDS, LAYOUT, TWO_UP_MAX_ROWS, DENSE_GRIDS, HUGE_GRIDS, TWO_UP_PINYIN_BLOCKED, gridsFor,
   };
 });

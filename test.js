@@ -617,6 +617,8 @@ for (const mode of ['both', 'hanzi', 'pinyin']) {
         // 7x7 / 8x8 的格子太窄，三四个字的词排不开。这两档偏小是明确接受的
         // 取舍（见 logic.js 的 DENSE_GRIDS），下面另有一条把代价钉住。
         if (L.DENSE_GRIDS.includes(grid)) continue;
+        // 9x9–12x12 只保证单字（和纯汉字下的两字词），下面另有一条专门测
+        if (L.HUGE_GRIDS.includes(grid)) continue;
         const size = L.cellFontSizes({ mode, ...cell, hanzi: word.hanzi, pinyin: word.pinyin });
         const main = mode === 'pinyin' ? size.pinyin : size.hanzi;
         assert.ok(
@@ -811,9 +813,38 @@ test('gridsFor: 整页版给出全部网格，两份版砍掉半页放不下的'
   }
 });
 
-test('gridsFor: 默认模式（汉字+拼音）在两份版下一个网格都没少', () => {
+test('gridsFor: 默认模式（汉字+拼音）在两份版下一个网格都没少（超大网格本来就只出整页）', () => {
   // 老师日常用的就是这个模式。要是省纸的代价是网格选项变少，这功能就不好用了。
-  assert.deepStrictEqual(L.gridsFor('both', true), L.GRIDS.both);
+  assert.deepStrictEqual(
+    L.gridsFor('both', true),
+    L.GRIDS.both.filter((g) => !L.HUGE_GRIDS.includes(g))
+  );
+});
+
+test('HUGE_GRIDS: 9x9–12x12 在汉字+拼音、只印汉字里都有，只出整页', () => {
+  for (const g of L.HUGE_GRIDS) {
+    assert.ok(L.GRIDS.both.includes(g), `默认模式少了 ${g}`);
+    assert.ok(L.GRIDS.hanzi.includes(g), `只印汉字少了 ${g}`);
+    assert.ok(!L.GRIDS.pinyin.includes(g), `只印拼音不该给 ${g}（长音节太小）`);
+    for (const mode of ['both', 'hanzi']) {
+      assert.ok(!L.gridsFor(mode, true).includes(g), `两份版不该给出 ${g}`);
+    }
+  }
+});
+
+test('HUGE_GRIDS: 单字在超大网格里不小于 6mm；只印汉字时两字词也不小于 6mm', () => {
+  for (const g of L.HUGE_GRIDS) {
+    const [cols, rows] = g.split('x').map(Number);
+    const cell = { cellW: GRID_W / cols, cellH: L.LAYOUT.one.gridMm / rows };
+    for (const word of ALL_WORDS) {
+      const n = Array.from(word.hanzi).length;
+      for (const mode of ['both', 'hanzi']) {
+        if (n > (mode === 'hanzi' ? 2 : 1)) continue;
+        const size = L.cellFontSizes({ mode, ...cell, hanzi: word.hanzi, pinyin: word.pinyin });
+        assert.ok(size.hanzi >= 6, `${g}/${mode}「${word.hanzi}」只有 ${size.hanzi.toFixed(1)}mm`);
+      }
+    }
+  }
 });
 
 test('index.html: 半张卡的尺寸和 logic.js 的 LAYOUT.two 对得上', () => {
