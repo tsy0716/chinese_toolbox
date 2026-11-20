@@ -21,7 +21,7 @@
 
   const el = {
     packs: $('packs'), custom: $('custom'), mode: $('mode'), grid: $('grid'), count: $('count'),
-    title: $('title'), seed: $('seed'), refCard: $('refCard'), twoUp: $('twoUp'),
+    title: $('title'), seed: $('seed'), refCard: $('refCard'), twoUp: $('twoUp'), style: $('style'),
     autoPinyin: $('autoPinyin'), generate: $('generate'), printCards: $('printCards'),
     status: $('status'), cards: $('cards'),
   };
@@ -31,7 +31,7 @@
   el.cards.style.setProperty('--lh-py', L.METRICS.pinyinLineHeight);
 
   /** 本次生成的结果 */
-  let state = { pool: [], deck: [], cols: 0, rows: 0, seed: '', mode: 'both', withRef: false, twoUp: false };
+  let state = { pool: [], deck: [], cols: 0, rows: 0, seed: '', mode: 'both', withRef: false, twoUp: false, style: 'bingo' };
 
   // ---------- 主题勾选 ----------
 
@@ -244,6 +244,7 @@
     state = {
       pool, deck, cols, rows, seed,
       mode: el.mode.value, withRef: el.refCard.checked, twoUp: el.twoUp.value === '2',
+      style: el.style.value,
     };
 
     renderCards();
@@ -268,27 +269,36 @@
   }
 
   /** 卡片格子里的一个词。字号由 logic.js 按模式和格子尺寸算好 */
+  /** 按卡片样式（Bingo／五子棋）调字号，见 logic.js 的 styledSize */
+  function styled(size) {
+    return {
+      ...size,
+      hanzi: L.styledSize(size.hanzi, 'hanzi', state.style),
+      pinyin: L.styledSize(size.pinyin, 'pinyin', state.style),
+    };
+  }
+
   function renderCellWord(word, mode, cellW, cellH) {
     const wrap = document.createElement('div');
     wrap.className = 'word word--' + mode;
 
     if (mode === 'hanzi') {
-      const size = L.cellFontSizes({ mode, cellW, cellH, hanzi: word.hanzi, pinyin: word.pinyin });
+      const size = styled(L.cellFontSizes({ mode, cellW, cellH, hanzi: word.hanzi, pinyin: word.pinyin }));
       wrap.appendChild(line('hz', word.hanzi, size.hanzi));
       return wrap;
     }
 
     if (mode === 'pinyin') {
-      const size = L.cellFontSizes({ mode, cellW, cellH, hanzi: word.hanzi, pinyin: word.pinyin });
+      const size = styled(L.cellFontSizes({ mode, cellW, cellH, hanzi: word.hanzi, pinyin: word.pinyin }));
       for (const text of size.pinyinLines) wrap.appendChild(line('py', text, size.pinyin));
       return wrap;
     }
 
     // 汉字 + 拼音：逐字对齐，一个音节压在一个汉字上方
     const pairs = L.alignPinyin(word.hanzi, word.pinyin);
-    const size = L.cellFontSizes({
+    const size = styled(L.cellFontSizes({
       mode, cellW, cellH, hanzi: word.hanzi, pinyin: word.pinyin, aligned: !!pairs,
-    });
+    }));
 
     if (pairs) {
       for (const { char, syllable } of pairs) {
@@ -313,7 +323,8 @@
    */
   function renderCard(card, isRef) {
     const { cols, rows, mode, twoUp } = state;
-    const title = el.title.value.trim() || '拼音宾果';
+    const typed = el.title.value.trim();
+    const title = (state.style === 'gomoku' && (!typed || typed === '拼音宾果')) ? '五子棋' : (typed || '拼音宾果');
     const cellW = PAGE_INNER_MM / cols;
     const cellH = layoutOf(twoUp).gridMm / rows;
 

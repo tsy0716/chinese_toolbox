@@ -413,6 +413,20 @@
    */
   const TWO_UP_MAX_ROWS = 10;
 
+  /**
+   * 卡片样式：Bingo 字撑满格子；五子棋把字缩到一半，格子里留出放棋子的空，
+   * 看起来才像棋盘。缩完不低于看清下限（汉字 6mm、拼音 4mm）——
+   * 原本就比下限小的（比如 12x12 的拼音）保持原样，不再缩。
+   */
+  const STYLE_SCALE = { bingo: 1, gomoku: 0.5 };
+  const STYLE_FLOOR_MM = { hanzi: 6, pinyin: 4 };
+
+  function styledSize(sizeMm, kind, style) {
+    const k = STYLE_SCALE[style] || 1;
+    if (k === 1 || !sizeMm) return sizeMm;
+    return Math.max(sizeMm * k, Math.min(sizeMm, STYLE_FLOOR_MM[kind]));
+  }
+
   /** 这个模式在这种版式下能用哪些网格 */
   function gridsFor(mode, twoUp) {
     const all = GRIDS[mode] || [];
@@ -543,6 +557,6 @@
     makeRng, shuffle, pickN, buildCard, buildDeck,
     parseWordList, mergeWords, usableWords, fillPinyin, formatWordList, needsReview,
     alignPinyin, cellFontSizes, splitPinyinLines, pinyinEms,
-    METRICS, GRIDS, LAYOUT, TWO_UP_MAX_ROWS, DENSE_GRIDS, HUGE_GRIDS, TWO_UP_PINYIN_BLOCKED, gridsFor,
+    METRICS, GRIDS, LAYOUT, TWO_UP_MAX_ROWS, STYLE_SCALE, STYLE_FLOOR_MM, styledSize, DENSE_GRIDS, HUGE_GRIDS, TWO_UP_PINYIN_BLOCKED, gridsFor,
   };
 });

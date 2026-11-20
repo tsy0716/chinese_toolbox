@@ -340,6 +340,14 @@
     <h2>2 · 设置</h2>
     <div class="row">
       <label class="field">
+        <span>做成什么</span>
+        <select id="style">
+          <option value="bingo" selected>Bingo（字撑满格子）</option>
+          <option value="gomoku">五子棋（字小，留出放棋子的地方）</option>
+        </select>
+      </label>
+
+      <label class="field">
         <span>格子里印什么</span>
         <select id="mode">
           <option value="both" selected>汉字 + 拼音</option>
@@ -420,8 +428,8 @@
      不带版本号的话，回访用户可能拿到「新 HTML + 旧 app.js」，页面直接坏掉。
      === 改了 js 就把下面三处 v= 一起 +1 === -->
 <script src="vendor/pinyin-pro.js?v=3.29.2"></script>
-<script src="logic.js?v=12"></script>
-<script src="words.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="logic.js?v=13"></script>
+<script src="words.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

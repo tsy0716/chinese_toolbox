@@ -212,6 +212,23 @@ test('index.html: 「每张 A4 印」是 1 份／2 份的下拉，默认 1 份',
   assert.match(sel[1], /value="1" selected/);
 });
 
+test('styledSize: Bingo 不变，五子棋缩一半，但不低于看清下限', () => {
+  assert.strictEqual(L.styledSize(17.5, 'hanzi', 'bingo'), 17.5);
+  assert.strictEqual(L.styledSize(17.5, 'hanzi', 'gomoku'), 8.75);
+  assert.strictEqual(L.styledSize(9, 'hanzi', 'gomoku'), 6);     // 缩一半是 4.5，托在 6
+  assert.strictEqual(L.styledSize(5, 'hanzi', 'gomoku'), 5);     // 本来就小于 6，不再缩
+  assert.strictEqual(L.styledSize(3.6, 'pinyin', 'gomoku'), 3.6);
+  assert.strictEqual(L.styledSize(0, 'pinyin', 'gomoku'), 0);    // 只印汉字时拼音是 0
+});
+
+test('index.html: 「做成什么」有 Bingo 和五子棋两种，默认 Bingo', () => {
+  const sel = HTML.match(/<select id="style">([\s\S]*?)<\/select>/);
+  assert.ok(sel, '找不到 id="style" 的下拉');
+  const opts = [...sel[1].matchAll(/value="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(opts, Object.keys(L.STYLE_SCALE));
+  assert.match(sel[1], /value="bingo" selected/);
+});
+
 test('parseWordList: 只写汉字时拼音留空', () => {
   const got = L.parseWordList('苹果\n香蕉');
   assert.deepStrictEqual(got, [
