@@ -327,12 +327,12 @@
     <div style="margin-top:18px">
       <h2>另外加词（可留空）</h2>
       <textarea id="custom" spellcheck="false"
-        placeholder="只写汉字就行，逗号或换行隔开：&#10;苹果,香蕉,西瓜&#10;&#10;拼音会自动标上。想自己写就在汉字后面空一格：&#10;对不起 duì bu qǐ"></textarea>
+        placeholder="只写汉字就行，逗号或换行隔开：&#10;苹果,香蕉,西瓜&#10;&#10;一串单字直接粘进来也行（五个字以上会自动拆成单字）：&#10;时玩走知这大羊鱼&#10;&#10;拼音会自动标上。想自己写就在汉字后面空一格：&#10;对不起 duì bu qǐ"></textarea>
       <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap">
         <button type="button" class="ghost" id="autoPinyin">标上拼音，填回框里</button>
         <span style="font-size:13px; color:var(--muted)">看一眼、改一改，比直接印上去稳</span>
       </div>
-      <p class="hint"><b>拼音是自动标的</b>，不用你写 —— 生成卡片时会顺手标好。多音字大多能按词义选对（长大 zhǎng、银行 háng、重新 chóng），但也会走眼（还给 会标成 hái gěi），所以<b>凡是含多音字的词，状态栏都会单独点名让你核对</b>。点上面那个按钮就能把拼音填回框里直接改。自己写的拼音一律优先，机器不覆盖：汉字后空一格、<b>按音节分开，一个音节对一个汉字</b>（苹果 píng guǒ）。井号 # 开头的行会被忽略。</p>
+      <p class="hint"><b>拼音是自动标的</b>，不用你写 —— 生成卡片时会顺手标好。多音字大多能按词义选对（长大 zhǎng、银行 háng、重新 chóng），但也会走眼（还给 会标成 hái gěi），所以<b>凡是含多音字的词，状态栏都会单独点名让你核对</b>。点上面那个按钮就能把拼音填回框里直接改。自己写的拼音一律优先，机器不覆盖：汉字后空一格、<b>按音节分开，一个音节对一个汉字</b>（苹果 píng guǒ）。一串单字（字表）直接粘进来也行，<b>五个字以上没隔开的会自动拆成一个一个的字</b>。井号 # 开头的行会被忽略。</p>
     </div>
   </section>
 
@@ -377,6 +377,15 @@
         <input type="number" id="count" value="6" min="1" max="200">
       </label>
 
+      <!-- 以前是一个「一张 A4 印两份」勾选框，老师找不到「一张印一份」在哪，改成明说的二选一 -->
+      <label class="field">
+        <span>每张 A4 印</span>
+        <select id="twoUp">
+          <option value="1" selected>1 份（整页）</option>
+          <option value="2">2 份（上下剪开）</option>
+        </select>
+      </label>
+
       <label class="field">
         <span>标题（印在卡片上）</span>
         <input type="text" id="title" value="拼音宾果">
@@ -393,10 +402,6 @@
       <span>多印一张裁判页<span class="count" style="color:var(--muted)">（排在最前面，抬头是「裁判用」、没有姓名栏，摆法和学生卡都不同，供老师照着念、念过的划掉。全班词语本来就相同，所以随便拿一张学生卡当喊词单也行）</span></span>
     </label>
 
-    <label class="checkline" style="margin-top:10px">
-      <input type="checkbox" id="twoUp">
-      <span>一张 A4 印两份<span class="count" style="color:var(--muted)">（上下各一张，中间照虚线剪开，两个学生分。省一半纸，卡片变成 A5 大小。12 行的密网格在半页上字太小，勾上后会从上面的「网格」里自动去掉）</span></span>
-    </label>
 
     <div class="row" style="margin-top:18px">
       <button id="generate">生成卡片</button>
@@ -415,8 +420,8 @@
      不带版本号的话，回访用户可能拿到「新 HTML + 旧 app.js」，页面直接坏掉。
      === 改了 js 就把下面三处 v= 一起 +1 === -->
 <script src="vendor/pinyin-pro.js?v=3.29.2"></script>
-<script src="logic.js?v=11"></script>
-<script src="words.js?v=11"></script>
-<script src="app.js?v=11"></script>
+<script src="logic.js?v=12"></script>
+<script src="words.js?v=12"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

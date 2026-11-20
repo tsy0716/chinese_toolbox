@@ -108,7 +108,7 @@
   function rebuildGridOptions() {
     const mode = el.mode.value;
     const keep = el.grid.value;
-    const twoUp = el.twoUp.checked;
+    const twoUp = el.twoUp.value === '2';
     const grids = L.gridsFor(mode, twoUp);
     const gridMm = layoutOf(twoUp).gridMm;
 
@@ -243,7 +243,7 @@
     el.seed.value = seed;
     state = {
       pool, deck, cols, rows, seed,
-      mode: el.mode.value, withRef: el.refCard.checked, twoUp: el.twoUp.checked,
+      mode: el.mode.value, withRef: el.refCard.checked, twoUp: el.twoUp.value === '2',
     };
 
     renderCards();

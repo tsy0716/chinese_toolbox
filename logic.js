@@ -112,6 +112,9 @@
 
   const CJK = /[㐀-䶿一-鿿豈-﫿]/;
 
+  /** 超过这么多字、又没写拼音的一串汉字，当成一张字表按单字拆开 */
+  const MAX_WORD_CHARS = 4;
+
   /**
    * 解析老师粘进来的词表。
    *
@@ -124,6 +127,10 @@
    * 而只印汉字的时候本来就用不着拼音。
    *
    * 空行和 # 开头的注释行会跳过；重复的词只留一个。
+   *
+   * 一长串汉字没有隔开、也没写拼音（「时玩走知这大……」），按单字拆开：
+   * 格子里最多排得下四字词，五个字以上不可能是一个词，几乎一定是老师
+   * 直接粘了一张字表进来。不拆的话整串只算一个词，页面会报「词池只有 1 个词」。
    */
   function parseWordList(text) {
     const out = [];
@@ -146,6 +153,15 @@
           throw new Error(
             `第 ${lineNo} 行的「${entry}」开头不是汉字，写成「苹果」或「苹果 píng guǒ」都行`
           );
+        }
+        const chars = Array.from(hanzi);
+        if (!pinyin && chars.length > MAX_WORD_CHARS && chars.every((c) => CJK.test(c))) {
+          for (const c of chars) {
+            if (seen.has(c)) continue;
+            seen.add(c);
+            out.push({ hanzi: c, pinyin: '' });
+          }
+          continue;
         }
         if (CJK.test(pinyin)) {
           throw new Error(

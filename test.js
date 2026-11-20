@@ -190,6 +190,28 @@ test('parseWordList: 拼音带多个音节时整体保留', () => {
   assert.deepStrictEqual(got, [{ hanzi: '对不起', pinyin: 'duì bu qǐ' }]);
 });
 
+test('parseWordList: 一长串单字没隔开，自动拆成单字（老师直接粘字表）', () => {
+  const got = L.parseWordList('时玩走知这大羊鱼问时');
+  assert.deepStrictEqual(got.map((w) => w.hanzi), ['时', '玩', '走', '知', '这', '大', '羊', '鱼', '问']);
+  assert.ok(got.every((w) => w.pinyin === ''));
+});
+
+test('parseWordList: 四字词不拆，写了拼音的长串也不拆', () => {
+  assert.deepStrictEqual(L.parseWordList('公共汽车').map((w) => w.hanzi), ['公共汽车']);
+  assert.deepStrictEqual(
+    L.parseWordList('中华人民共和国 zhōng huá rén mín gòng hé guó').map((w) => w.hanzi),
+    ['中华人民共和国']
+  );
+});
+
+test('index.html: 「每张 A4 印」是 1 份／2 份的下拉，默认 1 份', () => {
+  const sel = HTML.match(/<select id="twoUp">([\s\S]*?)<\/select>/);
+  assert.ok(sel, '找不到 id="twoUp" 的下拉');
+  const opts = [...sel[1].matchAll(/value="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(opts, ['1', '2']);
+  assert.match(sel[1], /value="1" selected/);
+});
+
 test('parseWordList: 只写汉字时拼音留空', () => {
   const got = L.parseWordList('苹果\n香蕉');
   assert.deepStrictEqual(got, [
